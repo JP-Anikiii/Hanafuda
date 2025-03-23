@@ -128,10 +128,10 @@
     </div>
     <div id="message">ゲームモードを選択してください。</div>
     <div id="game-mode-selection">
-        <button onclick="startGame(1, true)">1局で対戦 (プレイヤー先手)</button>
-        <button onclick="startGame(1, false)">1局で対戦 (AI先手)</button>
-        <button onclick="startGame(3, true)">3局で対戦 (ローテーション)</button>
-        <button onclick="startGame(6, true)">6局で対戦 (ローテーション)</button>
+        <button id="start-1-player">1局で対戦 (プレイヤー先手)</button>
+        <button id="start-1-ai">1局で対戦 (AI先手)</button>
+        <button id="start-3">3局で対戦 (ローテーション)</button>
+        <button id="start-6">6局で対戦 (ローテーション)</button>
     </div>
     <div id="deck">
         山札: <span id="deck-count">0</span>
@@ -411,8 +411,8 @@
         }
 
         function aiPlayCard() {
-            if (aiHand.length === 0) {
-                endGame();
+            if (aiHand.length === 0 && playerHand.length > 0) {
+                switchTurn("ai");
                 return;
             }
             const bestCardIndex = aiHand.reduce((bestIdx, card, i) => {
@@ -456,14 +456,16 @@
         function checkForYaku(player) {
             const collected = player === "player" ? playerCollected : aiCollected;
             const currentScore = player === "player" ? playerScore : aiScore;
+            const multiplier = player === "player" ? playerMultiplier : aiMultiplier;
             const [newPoints] = calculateScore(collected);
+            const handLength = player === "player" ? playerHand.length : aiHand.length;
 
-            if (newPoints > currentScore && (player === "player" ? playerHand.length : aiHand.length) > 0) {
+            if (newPoints > currentScore && handLength > 0) {
                 if (player === "player") {
                     playerScore = newPoints;
                     if (isPlayerTurn && !isGameOver) {
-                        const isKoiActive = playerMultiplier > 1;
-                        showOptions(isKoiActive);
+                        showOptions(multiplier > 1);
+                        return;
                     }
                 } else {
                     aiScore = newPoints;
@@ -472,12 +474,20 @@
                         aiMultiplier *= 2;
                         document.getElementById("message").textContent = "AIが「こいこい」を宣言しました！";
                         setTimeout(() => switchTurn("ai"), 1000);
-                    } else {
-                        switchTurn("ai");
+                        return;
                     }
                 }
-            } else {
+            }
+
+            if (playerHand.length > 0 || aiHand.length > 0) {
+                if (player === "player" && multiplier > 1) {
+                    document.getElementById("message").textContent = "「こいこい」中です。次の手番へ。";
+                } else if (player === "ai" && multiplier > 1) {
+                    document.getElementById("message").textContent = "AIが「こいこい」中です。次の手番へ。";
+                }
                 switchTurn(player);
+            } else {
+                endGame();
             }
         }
 
@@ -493,7 +503,7 @@
         }
 
         function switchTurn(player) {
-            if (playerHand.length === 0 || aiHand.length === 0) {
+            if (playerHand.length === 0 && aiHand.length === 0) {
                 endGame();
                 return;
             }
@@ -583,32 +593,44 @@
         function endGame() {
             isGameOver = true;
             const [playerPoints, playerDetails] = calculateScore(playerCollected);
-            const playerRoundScore = playerPoints * playerMultiplier;
+            const playerBaseScore = playerPoints;
+            const playerRoundScore = playerBaseScore * playerMultiplier;
             const [aiPoints, aiDetails] = calculateScore(aiCollected);
-            const aiRoundScore = aiPoints * aiMultiplier;
+            const aiBaseScore = aiPoints;
+            const aiRoundScore = aiBaseScore * aiMultiplier;
 
             let playerFinalScore = playerRoundScore;
             let aiFinalScore = aiRoundScore;
+            let additionalMessage = "";
 
             if (playerMultiplier > 1 && playerRoundScore < aiRoundScore) {
                 aiFinalScore += playerRoundScore;
                 playerFinalScore = 0;
-                document.getElementById("message").textContent += "\nプレイヤーが「こいこい」で負けたため、得点をAIに渡しました。";
+                additionalMessage += "\nプレイヤーが「こいこい」で負けたため、得点（" + playerRoundScore + "点）がAIに渡りました。";
             } else if (aiMultiplier > 1 && aiRoundScore < playerRoundScore) {
                 playerFinalScore += aiRoundScore;
                 aiFinalScore = 0;
-                document.getElementById("message").textContent += "\nAIが「こいこい」で負けたため、得点をプレイヤーに渡しました。";
+                additionalMessage += "\nAIが「こいこい」で負けたため、得点（" + aiRoundScore + "点）がプレイヤーに渡りました。";
             }
 
             playerTotalScore += playerFinalScore;
             aiTotalScore += aiFinalScore;
 
             document.getElementById("message").textContent = 
-                `第${currentRound}局終了！\n` +
-                `プレイヤー: ${playerFinalScore}点\n` +
-                `獲得役: ${playerDetails.join(", ")}\n` +
-                `AI: ${aiFinalScore}点\n` +
-                `獲得役: ${aiDetails.join(", ")}`;
+                `第${currentRound}局終了！\n\n` +
+                `プレイヤー:\n` +
+                `  基本点: ${playerBaseScore}点\n` +
+                `  倍率: ${playerMultiplier}倍\n` +
+                `  役: ${playerDetails.join(", ")}\n` +
+                `  試合得点: ${playerRoundScore}点\n` +
+                `  最終得点: ${playerFinalScore}点\n\n` +
+                `AI:\n` +
+                `  基本点: ${aiBaseScore}点\n` +
+                `  倍率: ${aiMultiplier}倍\n` +
+                `  役: ${aiDetails.join(", ")}\n` +
+                `  試合得点: ${aiRoundScore}点\n` +
+                `  最終得点: ${aiFinalScore}点` +
+                additionalMessage;
             renderGame();
         }
 
@@ -625,6 +647,14 @@
                 initRound(totalRounds > 1 ? true : isPlayerTurn);
             }
         }
+
+        // ゲームモード選択ボタンのイベントリスナーを追加
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("start-1-player").addEventListener("click", () => startGame(1, true));
+            document.getElementById("start-1-ai").addEventListener("click", () => startGame(1, false));
+            document.getElementById("start-3").addEventListener("click", () => startGame(3, true));
+            document.getElementById("start-6").addEventListener("click", () => startGame(6, true));
+        });
     </script>
 </body>
 </html>
