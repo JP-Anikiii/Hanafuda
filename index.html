@@ -521,8 +521,8 @@
             let points = 0;
             const details = [];
             const brights = collected.filter(card => card?.value === 20);
-            const animals = collected.filter(card => card?.value === 5);
-            const ribbons = collected.filter(card => card?.value === 10);
+            const animals = collected.filter(card => card?.value === 10);
+            const ribbons = collected.filter(card => card?.value === 5);
             const chaff = collected.filter(card => card?.value === 1);
 
             if (brights.length === 5) { points += 15; details.push("五光: 15点"); }
