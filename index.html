@@ -128,9 +128,10 @@
     </div>
     <div id="message">ゲームモードを選択してください。</div>
     <div id="game-mode-selection">
-        <button onclick="startGame(1)">1局で対戦</button>
-        <button onclick="startGame(3)">3局で対戦</button>
-        <button onclick="startGame(6)">6局で対戦</button>
+        <button onclick="startGame(1, true)">1局で対戦 (プレイヤー先手)</button>
+        <button onclick="startGame(1, false)">1局で対戦 (AI先手)</button>
+        <button onclick="startGame(3, true)">3局で対戦 (ローテーション)</button>
+        <button onclick="startGame(6, true)">6局で対戦 (ローテーション)</button>
     </div>
     <div id="deck">
         山札: <span id="deck-count">0</span>
@@ -211,17 +212,17 @@
         let totalRounds = 0;
         let hasDrawn = false;
 
-        function startGame(rounds) {
+        function startGame(rounds, playerFirst) {
             totalRounds = rounds;
             currentRound = 1;
             playerTotalScore = 0;
             aiTotalScore = 0;
             document.getElementById("game-mode-selection").style.display = "none";
-            initRound();
-            console.log("Game started with", rounds, "rounds");
+            initRound(playerFirst);
+            console.log("Game started with", rounds, "rounds, playerFirst:", playerFirst);
         }
 
-        function initRound() {
+        function initRound(playerFirst) {
             deck = shuffle([...hanafudaCards]);
             field = deck.splice(0, 8);
             playerHand = deck.splice(0, 8);
@@ -232,11 +233,12 @@
             aiScore = 0;
             playerMultiplier = 1;
             aiMultiplier = 1;
-            isPlayerTurn = true;
             isGameOver = false;
             hasDrawn = false;
-            document.getElementById("message").textContent = `第${currentRound}局開始！プレイヤーの手番です。「山札を引く」を押してください。`;
+            isPlayerTurn = totalRounds > 1 ? (currentRound % 2 === 1 ? playerFirst : !playerFirst) : playerFirst;
+            document.getElementById("message").textContent = `第${currentRound}局開始！${isPlayerTurn ? "プレイヤー" : "AI"}の手番です。${isPlayerTurn ? "「山札を引く」を押してください。" : ""}`;
             renderGame();
+            if (!isPlayerTurn) setTimeout(() => drawFromDeck("ai"), 1000);
         }
 
         function shuffle(array) {
@@ -271,10 +273,8 @@
                 cardElement.style.backgroundImage = `url(${card.image})`;
                 if (isPlayerTurn && !isGameOver && hasDrawn) {
                     cardElement.onclick = () => playCard(index);
-                    console.log(`Hand card ${index} is clickable: ${card.name}`);
                 } else {
                     cardElement.style.cursor = "default";
-                    console.log(`Hand card ${index} is not clickable: isPlayerTurn=${isPlayerTurn}, isGameOver=${isGameOver}, hasDrawn=${hasDrawn}`);
                 }
                 handDiv.appendChild(cardElement);
             });
@@ -314,16 +314,13 @@
 
             if (currentRound === 0) {
                 document.getElementById("game-mode-selection").style.display = "block";
-                console.log("Showing game-mode-selection");
             } else {
                 document.getElementById("game-mode-selection").style.display = "none";
                 if (isPlayerTurn && !isGameOver && !hasDrawn) {
                     drawButton.classList.add("active");
-                    console.log("Showing draw-button");
                 }
                 if (isGameOver) {
                     restartButton.classList.add("active");
-                    console.log("Showing restart-button");
                 }
             }
         }
@@ -340,11 +337,9 @@
 
             const drawnCard = deck.pop();
             const matchedIndices = field.reduce((acc, card, i) => {
-                if (card.month === drawnCard.month) acc.push(i);
+                if (card?.month === drawnCard.month) acc.push(i);
                 return acc;
             }, []);
-
-            console.log(`${player} drew: ${drawnCard.name}, matched indices: ${matchedIndices}`);
 
             if (matchedIndices.length === 1) {
                 if (player === "player") {
@@ -353,7 +348,7 @@
                     aiCollected.push(drawnCard, field.splice(matchedIndices[0], 1)[0]);
                 }
             } else if (matchedIndices.length > 1) {
-                const bestIndex = chooseBestCard(drawnCard, matchedIndices);
+                const bestIndex = chooseBestCard(drawnCard, matchedIndices, player);
                 if (player === "player") {
                     playerCollected.push(drawnCard, field.splice(bestIndex, 1)[0]);
                 } else {
@@ -374,11 +369,20 @@
             }
         }
 
-        function chooseBestCard(drawnCard, matchedIndices) {
-            const candidates = matchedIndices.map(index => field[index]);
+        function chooseBestCard(drawnCard, matchedIndices, player) {
+            const candidates = matchedIndices.map(index => field[index]).filter(card => card !== undefined);
+            if (candidates.length === 0) return matchedIndices[0] || 0;
+            if (player === "ai") {
+                const collected = [...aiCollected, drawnCard];
+                return matchedIndices[candidates.reduce((bestIdx, card, i) => {
+                    const tempCollected = [...collected, card];
+                    const [currentScore] = calculateScore([...collected, candidates[bestIdx] || { value: 0 }]);
+                    const [newScore] = calculateScore(tempCollected);
+                    return newScore > currentScore ? i : bestIdx;
+                }, 0)];
+            }
             return matchedIndices[candidates.reduce((bestIdx, card, i) => {
-                const bestValue = candidates[bestIdx].value;
-                return card.value > bestValue ? i : bestIdx;
+                return card.value > (candidates[bestIdx]?.value || 0) ? i : bestIdx;
             }, 0)];
         }
 
@@ -389,16 +393,14 @@
             }
             const playedCard = playerHand.splice(index, 1)[0];
             const matchedIndices = field.reduce((acc, card, i) => {
-                if (card.month === playedCard.month) acc.push(i);
+                if (card?.month === playedCard.month) acc.push(i);
                 return acc;
             }, []);
-
-            console.log("Player played: ", playedCard.name, "Matched indices:", matchedIndices);
 
             if (matchedIndices.length === 1) {
                 playerCollected.push(playedCard, field.splice(matchedIndices[0], 1)[0]);
             } else if (matchedIndices.length > 1) {
-                const bestIndex = chooseBestCard(playedCard, matchedIndices);
+                const bestIndex = chooseBestCard(playedCard, matchedIndices, "player");
                 playerCollected.push(playedCard, field.splice(bestIndex, 1)[0]);
             } else {
                 field.push(playedCard);
@@ -413,18 +415,35 @@
                 endGame();
                 return;
             }
-            const aiCard = aiHand.shift();
+            const bestCardIndex = aiHand.reduce((bestIdx, card, i) => {
+                const matchedIndices = field.reduce((acc, fCard, j) => {
+                    if (fCard?.month === card.month) acc.push(j);
+                    return acc;
+                }, []);
+                if (matchedIndices.length === 0) return bestIdx;
+                const bestMatchIndex = chooseBestCard(card, matchedIndices, "ai");
+                const tempCollected = [...aiCollected, card, field[bestMatchIndex]].filter(item => item !== undefined);
+                const bestMatchIndicesForBestIdx = field.reduce((acc, fCard, j) => {
+                    if (fCard?.month === aiHand[bestIdx]?.month) acc.push(j);
+                    return acc;
+                }, []);
+                const bestMatchForBestIdx = bestMatchIndicesForBestIdx.length > 0 ? chooseBestCard(aiHand[bestIdx], bestMatchIndicesForBestIdx, "ai") : -1;
+                const currentCollection = bestMatchForBestIdx >= 0 ? [...aiCollected, aiHand[bestIdx], field[bestMatchForBestIdx]] : [...aiCollected, aiHand[bestIdx]];
+                const [currentScore] = calculateScore(currentCollection.filter(item => item !== undefined));
+                const [newScore] = calculateScore(tempCollected);
+                return newScore > currentScore ? i : bestIdx;
+            }, 0);
+
+            const aiCard = aiHand.splice(bestCardIndex, 1)[0];
             const matchedIndices = field.reduce((acc, card, i) => {
-                if (card.month === aiCard.month) acc.push(i);
+                if (card?.month === aiCard.month) acc.push(i);
                 return acc;
             }, []);
-
-            console.log("AI played: ", aiCard.name, "Matched indices:", matchedIndices);
 
             if (matchedIndices.length === 1) {
                 aiCollected.push(aiCard, field.splice(matchedIndices[0], 1)[0]);
             } else if (matchedIndices.length > 1) {
-                const bestIndex = chooseBestCard(aiCard, matchedIndices);
+                const bestIndex = chooseBestCard(aiCard, matchedIndices, "ai");
                 aiCollected.push(aiCard, field.splice(bestIndex, 1)[0]);
             } else {
                 field.push(aiCard);
@@ -439,8 +458,6 @@
             const currentScore = player === "player" ? playerScore : aiScore;
             const [newPoints] = calculateScore(collected);
 
-            console.log(`${player} checking yaku: newPoints=${newPoints}, currentScore=${currentScore}, hand length=${player === "player" ? playerHand.length : aiHand.length}`);
-
             if (newPoints > currentScore && (player === "player" ? playerHand.length : aiHand.length) > 0) {
                 if (player === "player") {
                     playerScore = newPoints;
@@ -450,7 +467,8 @@
                     }
                 } else {
                     aiScore = newPoints;
-                    if (Math.random() > 0.5) {
+                    const potentialScore = estimatePotentialScore(aiHand, field);
+                    if (potentialScore + newPoints * aiMultiplier > playerScore * playerMultiplier && aiHand.length > 2) {
                         aiMultiplier *= 2;
                         document.getElementById("message").textContent = "AIが「こいこい」を宣言しました！";
                         setTimeout(() => switchTurn("ai"), 1000);
@@ -463,6 +481,17 @@
             }
         }
 
+        function estimatePotentialScore(hand, field) {
+            let potential = 0;
+            hand.forEach(card => {
+                const matches = field.filter(fCard => fCard?.month === card.month);
+                if (matches.length > 0) {
+                    potential += matches.reduce((max, c) => Math.max(max, c?.value || 0), 0);
+                }
+            });
+            return potential / 2;
+        }
+
         function switchTurn(player) {
             if (playerHand.length === 0 || aiHand.length === 0) {
                 endGame();
@@ -471,7 +500,6 @@
             isPlayerTurn = player === "player" ? false : true;
             hasDrawn = false;
             renderGame();
-            console.log("Switching turn to:", isPlayerTurn ? "player" : "ai");
             if (isPlayerTurn) {
                 document.getElementById("message").textContent = "プレイヤーの手番です。「山札を引く」を押してください。";
             } else {
@@ -482,17 +510,17 @@
         function calculateScore(collected) {
             let points = 0;
             const details = [];
-            const brights = collected.filter(card => card.value === 20);
-            const animals = collected.filter(card => card.value === 5);
-            const ribbons = collected.filter(card => card.value === 10);
-            const chaff = collected.filter(card => card.value === 1);
+            const brights = collected.filter(card => card?.value === 20);
+            const animals = collected.filter(card => card?.value === 5);
+            const ribbons = collected.filter(card => card?.value === 10);
+            const chaff = collected.filter(card => card?.value === 1);
 
             if (brights.length === 5) { points += 15; details.push("五光: 15点"); }
             else if (brights.length === 4) {
-                const hasRain = brights.some(card => card.name === "柳の光");
+                const hasRain = brights.some(card => card?.name === "柳の光");
                 points += hasRain ? 8 : 10;
                 details.push(hasRain ? "雨入り四光: 8点" : "四光: 10点");
-            } else if (brights.length === 3 && !brights.some(card => card.name === "柳の光")) {
+            } else if (brights.length === 3 && !brights.some(card => card?.name === "柳の光")) {
                 points += 5; details.push("三光: 5点");
             }
 
@@ -500,7 +528,7 @@
                 const extraPoints = animals.length - 4;
                 points += extraPoints; details.push(`種札${animals.length}枚: ${extraPoints}点`);
             }
-            if (collected.some(card => card.name === "萩の種") && collected.some(card => card.name === "紅葉の種") && collected.some(card => card.name === "牡丹の種")) {
+            if (collected.some(card => card?.name === "萩の種") && collected.some(card => card?.name === "紅葉の種") && collected.some(card => card?.name === "牡丹の種")) {
                 points += 5; details.push("猪鹿蝶: 5点");
             }
 
@@ -514,17 +542,17 @@
                 points += extraPoints; details.push(`カス${chaff.length}枚: ${extraPoints}点`);
             }
 
-            if (collected.some(card => card.name === "桜の光") && collected.some(card => card.name === "菊の種")) {
+            if (collected.some(card => card?.name === "桜の光") && collected.some(card => card?.name === "菊の種")) {
                 points += 5; details.push("花見で一杯: 5点");
             }
-            if (collected.some(card => card.name === "芒の光") && collected.some(card => card.name === "菊の種")) {
+            if (collected.some(card => card?.name === "芒の光") && collected.some(card => card?.name === "菊の種")) {
                 points += 5; details.push("月見で一杯: 5点");
             }
 
-            if (collected.some(card => card.name === "松の短") && collected.some(card => card.name === "梅の短") && collected.some(card => card.name === "桜の短")) {
+            if (collected.some(card => card?.name === "松の短") && collected.some(card => card?.name === "梅の短") && collected.some(card => card?.name === "桜の短")) {
                 points += 5; details.push("赤短三光: 5点");
             }
-            if (collected.some(card => card.name === "牡丹の短") && collected.some(card => card.name === "菊の短") && collected.some(card => card.name === "紅葉の短")) {
+            if (collected.some(card => card?.name === "牡丹の短") && collected.some(card => card?.name === "菊の短") && collected.some(card => card?.name === "紅葉の短")) {
                 points += 5; details.push("青短三光: 5点");
             }
 
@@ -538,7 +566,6 @@
             document.getElementById("message").textContent = isKoiActive ?
                 "新たに役が成立しました！再度「こいこい」か「上がり」を選んでください。" :
                 "役が成立しました！「こいこい」か「上がり」を選んでください。";
-            console.log("Showing koi-button and end-button, isKoiActive=", isKoiActive);
         }
 
         function callKoi() {
@@ -595,9 +622,9 @@
                 currentRound = 0;
                 renderGame();
             } else {
-                initRound();
+                initRound(totalRounds > 1 ? true : isPlayerTurn);
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'924c9318ea0c6760',t:'MTc0MjcxODcwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
