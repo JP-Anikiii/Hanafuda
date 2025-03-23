@@ -25,7 +25,7 @@
         .card:hover {
             border: 2px solid #00f;
         }
-        #field, #player-hand, #deck, #player-collected, #ai-hand, #ai-collected, #player-score-details, #ai-score-details {
+        #field, #player-hand, #deck, #player-collected, #ai-hand, #ai-collected {
             margin: 10px;
             display: flex;
             flex-wrap: wrap;
@@ -52,6 +52,7 @@
         h1 {
             text-align: center;
             font-size: 24px;
+            margin: 10px 0;
         }
         #message {
             text-align: center;
@@ -72,6 +73,25 @@
             font-weight: bold;
             padding: 12px 24px;
         }
+        #control-panel {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ccc;
+        }
+        #score-board {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: #e0f7fa;
+            border-bottom: 2px solid #007bff;
+            margin-bottom: 10px;
+        }
+        #score-board div {
+            font-size: 18px;
+            font-weight: bold;
+        }
         @media (max-width: 600px) {
             .card {
                 width: 50px;
@@ -88,12 +108,25 @@
                 padding: 8px 16px;
                 font-size: 14px;
             }
+            #score-board div {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="message">ゲームモードを選択してください。</div>
     <h1>花札 - こいこい</h1>
+    <div id="score-board">
+        <div id="player-score-details">プレイヤーの得点: <span id="player-points">0</span>点 (合計: <span id="player-total">0</span>点)</div>
+        <div id="ai-score-details">AIの得点: <span id="ai-points">0</span>点 (合計: <span id="ai-total">0</span>点)</div>
+    </div>
+    <div id="control-panel">
+        <button id="draw-button" onclick="drawFromDeck('player')">山札を引く</button>
+        <button id="koi-button" onclick="callKoi()">こいこい</button>
+        <button id="end-button" onclick="endTurn()">上がり</button>
+        <button id="restart-button" onclick="nextRound()">次の局へ</button>
+    </div>
+    <div id="message">ゲームモードを選択してください。</div>
     <div id="game-mode-selection">
         <button onclick="startGame(1)">1局で対戦</button>
         <button onclick="startGame(3)">3局で対戦</button>
@@ -101,18 +134,12 @@
     </div>
     <div id="deck">
         山札: <span id="deck-count">0</span>
-        <button id="draw-button" onclick="drawFromDeck('player')">山札を引く</button>
     </div>
     <div id="field">場:</div>
     <div id="player-hand">プレイヤーの手札:</div>
     <div id="player-collected">プレイヤーの獲得札:</div>
-    <div id="player-score-details">プレイヤーの得点: <span id="player-points">0</span>点 (合計: <span id="player-total">0</span>点)</div>
     <div id="ai-hand">AIの残り手札: <span id="ai-hand-count">0</span></div>
     <div id="ai-collected">AIの獲得札:</div>
-    <div id="ai-score-details">AIの得点: <span id="ai-points">0</span>点 (合計: <span id="ai-total">0</span>点)</div>
-    <button id="koi-button" onclick="callKoi()">こいこい</button>
-    <button id="end-button" onclick="endTurn()">上がり</button>
-    <button id="restart-button" onclick="nextRound()">次の局へ</button>
 
     <script>
         const hanafudaCards = [
@@ -572,5 +599,5 @@
             }
         }
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'924c9318ea0c6760',t:'MTc0MjcxODcwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
