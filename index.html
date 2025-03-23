@@ -211,6 +211,7 @@
         let currentRound = 0;
         let totalRounds = 0;
         let hasDrawn = false;
+        let playerEnded = false;
 
         function startGame(rounds, playerFirst) {
             totalRounds = rounds;
@@ -235,6 +236,7 @@
             aiMultiplier = 1;
             isGameOver = false;
             hasDrawn = false;
+            playerEnded = false;
             isPlayerTurn = totalRounds > 1 ? (currentRound % 2 === 1 ? playerFirst : !playerFirst) : playerFirst;
             document.getElementById("message").textContent = `第${currentRound}局開始！${isPlayerTurn ? "プレイヤー" : "AI"}の手番です。${isPlayerTurn ? "「山札を引く」を押してください。" : ""}`;
             renderGame();
@@ -587,6 +589,7 @@
         }
 
         function endTurn() {
+            playerEnded = true;
             endGame();
         }
 
@@ -603,14 +606,22 @@
             let aiFinalScore = aiRoundScore;
             let additionalMessage = "";
 
-            if (playerMultiplier > 1 && playerRoundScore < aiRoundScore) {
-                aiFinalScore += playerRoundScore;
-                playerFinalScore = 0;
-                additionalMessage += "\nプレイヤーが「こいこい」で負けたため、得点（" + playerRoundScore + "点）がAIに渡りました。";
-            } else if (aiMultiplier > 1 && aiRoundScore < playerRoundScore) {
-                playerFinalScore += aiRoundScore;
-                aiFinalScore = 0;
-                additionalMessage += "\nAIが「こいこい」で負けたため、得点（" + aiRoundScore + "点）がプレイヤーに渡りました。";
+            if (playerEnded) {
+                if (aiMultiplier > 1) {
+                    playerFinalScore += aiRoundScore;
+                    aiFinalScore = 0;
+                    additionalMessage += `\nAIが「こいこい」を宣言していたため、AIの得点（${aiRoundScore}点）がプレイヤーに渡りました。`;
+                }
+            } else {
+                if (playerMultiplier > 1 && playerRoundScore < aiRoundScore) {
+                    aiFinalScore += playerRoundScore;
+                    playerFinalScore = 0;
+                    additionalMessage += `\nプレイヤーが「こいこい」で負けたため、得点（${playerRoundScore}点）がAIに渡りました。`;
+                } else if (aiMultiplier > 1 && aiRoundScore < playerRoundScore) {
+                    playerFinalScore += aiRoundScore;
+                    aiFinalScore = 0;
+                    additionalMessage += `\nAIが「こいこい」で負けたため、得点（${aiRoundScore}点）がプレイヤーに渡りました。`;
+                }
             }
 
             playerTotalScore += playerFinalScore;
@@ -648,7 +659,6 @@
             }
         }
 
-        // ゲームモード選択ボタンのイベントリスナーを追加
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("start-1-player").addEventListener("click", () => startGame(1, true));
             document.getElementById("start-1-ai").addEventListener("click", () => startGame(1, false));
